@@ -34,7 +34,7 @@
 
 ---
 
-## 🛠️ Getting Started
+## Getting Started
 
 Clone the repo:
 
@@ -43,3 +43,35 @@ git clone https://github.com/CryptoMachineGene/proofmint.git
 cd proofmint
 npm install
 ```
+Compile contracts:
+```bash
+npx hardhat compile
+```
+
+Run tests:
+```bash
+npx hardhat test
+```
+
+Spin up local network (optional for frontend dev):
+```bash
+npx hardhat node
+```
+
+## Directory Overview
+```bash
+contracts/           → Solidity smart contracts
+scripts/             → Deployment + helper scripts
+test/                → Mocha/Chai test files
+frontend/            → React-based frontend (coming soon)
+hardhat.config.js    → Hardhat setup
+```
+
+Author
+Eugene McGrath
+Blockchain Developer | Solidity + React
+🔗 @CryptoMachineG
+🌐 New World Cryptos®
+
+License
+MIT — free to use, fork, or remix for your own learning and dev journey.
