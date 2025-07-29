@@ -1,13 +1,45 @@
-# Sample Hardhat Project
+# 🧬 ProofMint
 
-This project demonstrates a basic Hardhat use case. It comes with a sample contract, a test for that contract, and a Hardhat Ignition module that deploys that contract.
+**ProofMint** is a full-stack dApp that combines a time-limited ERC-20 token crowdsale with ERC-721 NFT receipts as proof of contribution. This project demonstrates how NFTs can serve real utility — beyond collectibles — by functioning as on-chain participation records.
 
-Try running some of the following tasks:
+---
 
-```shell
-npx hardhat help
-npx hardhat test
-REPORT_GAS=true npx hardhat test
-npx hardhat node
-npx hardhat ignition deploy ./ignition/modules/Lock.js
+## 🚀 Features
+
+- 🪙 **ERC-20 Crowdsale:** A smart contract that accepts ETH in exchange for a custom token.
+- 🧾 **NFT Receipt Minting:** Each contributor receives a unique, non-transferable ERC-721 token.
+- ⏳ **Time-Limited Sale:** Accepts contributions only during a fixed window.
+- 🖥️ **Frontend Interface:** Built with React + Ethers.js for live participation and NFT preview.
+- 🧪 **Unit Tests:** Comprehensive Hardhat test suite for both contracts.
+
+---
+
+## 📚 What You'll Learn
+
+- How to structure a dual-contract dApp (ERC-20 + ERC-721)
+- How to write and test custom crowdsale logic in Solidity
+- How to mint NFTs on-chain in response to real events
+- How to connect a React frontend to smart contracts with Ethers.js
+
+---
+
+## 🧱 Tech Stack
+
+- **Solidity** (ERC-20 + ERC-721)
+- **Hardhat** (local blockchain + testing)
+- **Ethers.js**
+- **React + Vite or CRA** (frontend)
+- **Tailwind CSS** (UI, optional)
+- **Redux Toolkit** (state, optional)
+
+---
+
+## 🛠️ Getting Started
+
+Clone the repo:
+
+```bash
+git clone https://github.com/CryptoMachineGene/proofmint.git
+cd proofmint
+npm install
 ```
