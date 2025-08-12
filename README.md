@@ -1,13 +1,15 @@
-# Sample Hardhat Project
+# Proofmint
 
-This project demonstrates a basic Hardhat use case. It comes with a sample contract, a test for that contract, and a Hardhat Ignition module that deploys that contract.
+A minimal Hardhat-based smart contract project for token sales.
 
-Try running some of the following tasks:
+## Features
+- ERC20-like Token
+- Crowdsale with cap and rate
+- Reentrancy protection tests
 
-```shell
-npx hardhat help
+## Setup
+```bash
+npm install
+npx hardhat compile
 npx hardhat test
-REPORT_GAS=true npx hardhat test
-npx hardhat node
-npx hardhat ignition deploy ./ignition/modules/Lock.js
 ```
