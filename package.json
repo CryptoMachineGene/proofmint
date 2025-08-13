@@ -2,16 +2,23 @@
   "name": "proofmint",
   "version": "1.0.0",
   "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
+  "description": "",
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": "",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "coverage": "hardhat coverage",
+    "deploy:sepolia": "hardhat run scripts/deploy.js --network sepolia",
+    "verify:sepolia": "node scripts/verify-sepolia.js",
+    "buy:sepolia": "hardhat run scripts/buy.js --network sepolia",
+    "withdraw:sepolia": "hardhat run scripts/withdraw.js --network sepolia"
+  },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^6.1.0",
     "@types/node": "^24.2.1",
+    "dotenv": "^17.2.1",
     "ethers": "^6.15.0",
     "hardhat": "^2.26.3",
     "solidity-coverage": "^0.8.16",
