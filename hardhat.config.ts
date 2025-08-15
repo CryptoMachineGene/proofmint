@@ -6,6 +6,7 @@ import "./tasks/accounts";
 import "./tasks/accounts";
 import "./tasks/buy";
 import "./tasks/balance";
+import "./tasks/grantMinter";
 
 
 dotenv.config();
