@@ -8,7 +8,7 @@ import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 contract ProofNFT is ERC721, ERC721URIStorage, AccessControl {
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
 
-    uint256 private _nextTokenId = 1; // start at 1
+    uint256 private _nextTokenId = 1;
     string private _baseTokenURI;
 
     event ReceiptMinted(address indexed to, uint256 indexed tokenId);
@@ -20,18 +20,39 @@ contract ProofNFT is ERC721, ERC721URIStorage, AccessControl {
         _baseTokenURI = baseURI_;
     }
 
+    // ---- PUBLIC/EXTERNAL API (both delegate) ----
+
     function mintReceipt(address to, string calldata tokenURI_)
         external
         onlyRole(MINTER_ROLE)
+        returns (uint256)
+    {
+        return _mintReceipt(to, tokenURI_);
+    }
+
+    function mintTo(address to)
+        external
+        onlyRole(MINTER_ROLE)
+        returns (uint256)
+    {
+        return _mintReceipt(to, "");
+    }
+
+    // ---- SINGLE SOURCE OF TRUTH ----
+
+    function _mintReceipt(address to, string memory tokenURI_)
+        internal
         returns (uint256 tokenId)
     {
         tokenId = _nextTokenId++;
-        _safeMint(to, tokenId);
+        _safeMint(to, tokenId);                 // may call onERC721Received on receivers
         if (bytes(tokenURI_).length != 0) {
             _setTokenURI(tokenId, tokenURI_);
         }
         emit ReceiptMinted(to, tokenId);
     }
+
+    // ---- Admin & overrides ----
 
     function grantMinter(address minter) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _grantRole(MINTER_ROLE, minter);
@@ -41,13 +62,10 @@ contract ProofNFT is ERC721, ERC721URIStorage, AccessControl {
         _baseTokenURI = newBase;
     }
 
-    // ---------- Minimal overrides (OZ v5) ----------
-
     function _baseURI() internal view override returns (string memory) {
         return _baseTokenURI;
     }
 
-    // Resolve diamond: ERC721 and ERC721URIStorage both define tokenURI
     function tokenURI(uint256 tokenId)
         public
         view
@@ -57,7 +75,6 @@ contract ProofNFT is ERC721, ERC721URIStorage, AccessControl {
         return super.tokenURI(tokenId);
     }
 
-    // In OZ v5, ERC721URIStorage also advertises IERC4906 in supportsInterface.
     function supportsInterface(bytes4 interfaceId)
         public
         view
