@@ -1,96 +1,69 @@
-import { ethers } from "hardhat";
+import hre, { ethers, network, run } from "hardhat";
+import { readAddresses, writeAddresses } from "../utils/addresses";
 
-/**
- * Deploys:
- *  - ProofNFT (ERC-721 receipts)
- *  - Token (ERC-20)
- *  - Crowdsale(token, rate, cap, nft)
- * Grants:
- *  - ERC20 MINTER_ROLE (if present) to Crowdsale
- *  - NFT  MINTER_ROLE to Crowdsale
- *
- * Adjust names/addresses as needed.
- */
 async function main() {
-  const [deployer] = await ethers.getSigners();
-  console.log("Deployer:", deployer.address);
+  const net = network.name;
+  const addrs = await readAddresses(net);
 
-  // ---- Config ----
-  // tokens per 1 ETH (18 decimals). Example: 1000e18 means 1000 tokens per ETH.
-  const RATE = ethers.parseUnits("1000", 18); // adjust as needed
-  // hard cap in wei (example: 100 ETH)
-  const CAP  = ethers.parseEther("100");      // adjust as needed
-
-  // If you already have deployed addresses, set them here and skip deploys.
-  const EXISTING_TOKEN = ""; // e.g., "0x..." to reuse
-  const EXISTING_NFT   = ""; // e.g., "0x..." to reuse
-
-  // ---- Deploy / Attach ERC-721 ----
-  let proofNftAddr: string;
-  if (EXISTING_NFT) {
-    proofNftAddr = EXISTING_NFT;
-    console.log("Using existing ProofNFT:", proofNftAddr);
-  } else {
-    const ProofNFT = await ethers.getContractFactory("ProofNFT");
-    const proofNFT = await ProofNFT.deploy("Proof of Purchase", "RECEIPT", "ipfs://base/");
-    await proofNFT.waitForDeployment();
-    proofNftAddr = await proofNFT.getAddress();
-    console.log("Deployed ProofNFT:", proofNftAddr);
+  // 1) Resolve token address:
+  //    Priority: env.TOKEN_ADDRESS -> deployments file -> throw
+  const envToken = (process.env.TOKEN_ADDRESS || "").trim();
+  const tokenAddress = envToken || addrs.Token;
+  if (!tokenAddress) {
+    throw new Error(
+      "Token address missing. Set TOKEN_ADDRESS in .env or write it to deployments/<network>.json as 'Token'."
+    );
   }
 
-  // ---- Deploy / Attach ERC-20 ----
-  let tokenAddr: string;
-  if (EXISTING_TOKEN) {
-    tokenAddr = EXISTING_TOKEN;
-    console.log("Using existing ERC20:", tokenAddr);
-  } else {
-    const Token = await ethers.getContractFactory("Crowdsale"); // <-- rename to your contract
-    const token = await Token.deploy();
-    await token.waitForDeployment();
-    tokenAddr = await token.getAddress();
-    console.log("Deployed ERC20:", tokenAddr);
+  // 2) If you already have a crowdsale deployed (CROWDSALE_ADDRESS), persist + exit early
+  const envCrowdsale = (process.env.CROWDSALE_ADDRESS || "").trim();
+  if (envCrowdsale) {
+    console.log("ℹ️ Using existing Crowdsale from .env:", envCrowdsale);
+    addrs.Crowdsale = envCrowdsale;
+    await writeAddresses(net, addrs);
+    return;
   }
 
-  // ---- Deploy Crowdsale(token, rate, cap, nft) ----
+  // 3) Otherwise deploy a new crowdsale
+  const rateEnv = process.env.RATE || "1000";
+  const rate = BigInt(rateEnv);
+  if (rate <= 0n) throw new Error("RATE must be a positive integer.");
+
   const Crowdsale = await ethers.getContractFactory("Crowdsale");
-  const crowdsale = await Crowdsale.deploy(tokenAddr, RATE, CAP, proofNftAddr);
+  const crowdsale = await Crowdsale.deploy(tokenAddress, rate);
   await crowdsale.waitForDeployment();
-  const crowdsaleAddr = await crowdsale.getAddress();
-  console.log("Deployed Crowdsale:", crowdsaleAddr);
+  const crowdsaleAddress = await crowdsale.getAddress();
+  console.log("✅ Crowdsale deployed:", crowdsaleAddress);
 
-  // ---- Grant Roles ----
-  // ERC20 MINTER_ROLE (if the token exposes AccessControl)
-  try {
-  // before:
-  // const Token = await ethers.getContractAt("YourMintableToken", tokenAddr);
+  addrs.Token = tokenAddress;      // ensure saved
+  addrs.Crowdsale = crowdsaleAddress;
+  await writeAddresses(net, addrs);
 
-  // after:
-  const Token = await ethers.getContractAt("Token", tokenAddr);
-
-  // @ts-ignore: not all tokens expose this
-  if (Token.MINTER_ROLE) {
-    // @ts-ignore
-    const MINTER_ROLE = await Token.MINTER_ROLE();
-    const tx1 = await Token.grantRole(MINTER_ROLE, crowdsaleAddr);
-    await tx1.wait();
-    console.log("Granted ERC20 MINTER_ROLE to Crowdsale");
-  } else {
-    console.log("NOTE: Token has no MINTER_ROLE() accessor; ensure Crowdsale can mint.");
-  }
-} catch {
-  console.log("NOTE: Skipped ERC20 role grant (no AccessControl or ABI mismatch).");
-}
-
-  // NFT MINTER_ROLE
-  {
-    const ProofNFT = await ethers.getContractAt("ProofNFT", proofNftAddr);
-    const MINTER_ROLE = await ProofNFT.MINTER_ROLE();
-    const tx2 = await ProofNFT.grantRole(MINTER_ROLE, crowdsaleAddr);
-    await tx2.wait();
-    console.log("Granted NFT MINTER_ROLE to Crowdsale");
+  // 4) Optional: grant NFT minter role to Crowdsale (if your NFT is role-gated)
+  if (addrs.ProofNFT) {
+    try {
+      await hre.run("grant-minter", {
+        nft: addrs.ProofNFT,
+        to: crowdsaleAddress,
+      } as any);
+      console.log("🔐 Granted minter role to Crowdsale on ProofNFT");
+    } catch (e) {
+      console.log("ℹ️ grant-minter skipped or failed:", (e as Error).message);
+    }
   }
 
-  console.log("✅ Deployment complete.");
+  // 5) Verify
+  if (process.env.ETHERSCAN_API_KEY) {
+    try {
+      await run("verify:verify", {
+        address: crowdsaleAddress,
+        constructorArguments: [tokenAddress, rate],
+      });
+      console.log("🔎 Verified Crowdsale");
+    } catch (e) {
+      console.log("ℹ️ Verify (crowdsale) skipped or failed:", (e as Error).message);
+    }
+  }
 }
 
 main().catch((e) => {
