@@ -1,8 +1,10 @@
+// scripts/deploy/03_deploy_crowdsale.ts
 import hre, { ethers, network, run } from "hardhat";
 import { readAddresses, writeAddresses } from "../utils/addresses";
 
 function first<T>(...vals: (T | undefined | null | "" )[]): T | undefined {
   for (const v of vals) if (v !== undefined && v !== null && v !== "") return v as T;
+  return undefined;
 }
 
 function toWeiFromEthInt(ethStr: string): bigint {
@@ -12,59 +14,54 @@ function toWeiFromEthInt(ethStr: string): bigint {
   return BigInt(ethStr) * 10n ** 18n;
 }
 
+function envClean(s?: string) {
+  if (!s) return "";
+  const i = s.indexOf("#");
+  return (i >= 0 ? s.slice(0, i) : s).trim();
+}
+
 async function main() {
+  console.log("▶️  Crowdsale deploy starting… network =", network.name);
   const net = network.name;
   const addrs = await readAddresses(net);
 
-  // Use existing crowdsale if provided
-  const envCrowdsale = (process.env.CROWDSALE_ADDRESS || process.env.CROWDSALE || "").trim();
-  if (envCrowdsale) {
-    console.log("ℹ️ Using existing Crowdsale from .env:", envCrowdsale);
-    addrs.Crowdsale = envCrowdsale;
-    await writeAddresses(net, addrs);
-    return;
-  }
-
+  
   // ---- tokenAddress ----
-  const envToken = (process.env.TOKEN_ADDRESS || "").trim();
+  const envToken = envClean(process.env.TOKEN_ADDRESS);
   const fileToken = addrs.Token;
   const tokenAddress = first<string>(envToken, fileToken);
   if (!tokenAddress) throw new Error("❌ Missing TOKEN_ADDRESS in .env and no 'Token' in deployments file.");
-  if (envToken) console.log("ℹ️ Using TOKEN_ADDRESS from .env:", tokenAddress);
-  else console.log("ℹ️ Using TOKEN_ADDRESS from deployments file:", tokenAddress);
+  console.log(`ℹ️ Using TOKEN_ADDRESS: ${envToken ? "(.env) " : "(deployments) "} ${tokenAddress}`);
 
-  // ---- rate ----
-  const rateStr = first<string>(
-    (process.env.RATE || "").trim(),
-    (process.env.RATE_TOKENS_PER_ETH || "").trim()
-  );
+  // ---- rate (plain tokens per 1 ETH, e.g. 1000) ----
+  const rateStr = first<string>(envClean(process.env.RATE), envClean(process.env.RATE_TOKENS_PER_ETH));
   if (!rateStr) throw new Error("❌ Missing RATE (or RATE_TOKENS_PER_ETH) in .env.");
+  if (!/^\d+$/.test(rateStr)) throw new Error(`❌ RATE_TOKENS_PER_ETH must be an unsigned integer; got "${rateStr}"`);
   const rate = BigInt(rateStr);
-  console.log("ℹ️ Using RATE (tokens per ETH):", rate.toString());
+  console.log("ℹ️ Using RATE (tokens per 1 ETH):", rate.toString());
 
   // ---- cap ----
-  const capWeiStr = (process.env.CROWDSALE_CAP || "").trim();
-  const capEthStr = (process.env.CAP_ETH || "").trim();
+  const capWeiStr = envClean(process.env.CROWDSALE_CAP);
+  const capEthStr = envClean(process.env.CAP_ETH);
   let cap: bigint | undefined;
   if (capWeiStr) {
-    if (!/^\d+$/.test(capWeiStr)) throw new Error("❌ CROWDSALE_CAP must be a wei integer.");
+    if (!/^\d+$/.test(capWeiStr)) throw new Error(`❌ CROWDSALE_CAP must be a wei integer; got "${capWeiStr}"`);
     cap = BigInt(capWeiStr);
-    console.log(`ℹ️ Using CROWDSALE_CAP from .env (wei): ${capWeiStr}`);
+    console.log(`ℹ️ Using CROWDSALE_CAP (wei): ${capWeiStr}`);
   } else if (capEthStr) {
     const capWei = toWeiFromEthInt(capEthStr);
     cap = capWei;
-    console.log(`ℹ️ Using CAP_ETH from .env (ETH): ${capEthStr} → (wei): ${capWei.toString()}`);
+    console.log(`ℹ️ Using CAP_ETH (ETH int): ${capEthStr} → (wei): ${capWei.toString()}`);
   }
   if (cap === undefined) throw new Error("❌ Missing CROWDSALE_CAP (wei) or CAP_ETH (ETH int).");
   console.log("ℹ️ Final cap (wei) to pass to constructor:", cap.toString());
 
   // ---- nftAddress ----
-  const envNft = (process.env.NFT_ADDRESS || "").trim();
+  const envNft = envClean(process.env.NFT_ADDRESS);
   const fileNft = addrs.ProofNFT;
   const nftAddress = first<string>(envNft, fileNft);
   if (!nftAddress) throw new Error("❌ Missing NFT_ADDRESS in .env and no 'ProofNFT' in deployments file.");
-  if (envNft) console.log("ℹ️ Using NFT_ADDRESS from .env:", nftAddress);
-  else console.log("ℹ️ Using NFT_ADDRESS from deployments file:", nftAddress);
+  console.log(`ℹ️ Using NFT_ADDRESS: ${envNft ? "(.env) " : "(deployments) "} ${nftAddress}`);
 
   // ---- Deploy ----
   const Crowdsale = await ethers.getContractFactory("Crowdsale");
@@ -85,22 +82,43 @@ async function main() {
   addrs.Crowdsale = crowdsaleAddress;
   await writeAddresses(net, addrs);
 
-  // Optional: grant NFT minter to Crowdsale
+  // ===== Permissions =====
+  // (A) NFT: grant minter to Crowdsale (via your existing task)
   try {
     await hre.run("grant-minter", { nft: nftAddress, to: crowdsaleAddress } as any);
     console.log("🔐 Granted minter on NFT to Crowdsale");
   } catch (e) {
-    console.log("ℹ️ grant-minter skipped or failed:", (e as Error).message);
+    console.log("ℹ️ grant-minter (NFT) skipped or failed:", (e as Error).message);
   }
 
-  // Verify
+  // (B) TOKEN: grant minter to Crowdsale
+  try {
+    // Replace with your actual token contract name:
+    const token = await ethers.getContractAt("Token", tokenAddress);
+
+    // EITHER: helper style
+    // const tx = await (token as any).grantMinter(crowdsaleAddress);
+
+    // OR: AccessControl role style
+    const MINTER_ROLE = await (token as any).MINTER_ROLE();
+    const tx = await (token as any).grantRole(MINTER_ROLE, crowdsaleAddress);
+
+    await tx.wait();
+    console.log("🔐 Granted minter on TOKEN to Crowdsale");
+  } catch (e) {
+    console.log("ℹ️ grant-minter (TOKEN) skipped or failed:", (e as Error).message);
+  }
+
+  // ---- Verify (optional) ----
   if (process.env.ETHERSCAN_API_KEY) {
     try {
+      console.log("⏳ Waiting a few seconds before verify so Etherscan can index...");
+      await new Promise((r) => setTimeout(r, 10000)); // 10s delay
       await run("verify:verify", {
         address: crowdsaleAddress,
         constructorArguments: [tokenAddress, rate, cap, nftAddress],
       });
-      console.log("🔎 Verified Crowdsale");
+      console.log("🔎 Verified Crowdsale successfully on Etherscan");
     } catch (e) {
       console.log("ℹ️ Verify (crowdsale) skipped or failed:", (e as Error).message);
     }
@@ -108,6 +126,6 @@ async function main() {
 }
 
 main().catch((e) => {
-  console.error(e);
+  console.error("🚨 Script failed:", e);
   process.exit(1);
 });
