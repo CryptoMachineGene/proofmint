@@ -28,6 +28,11 @@ const config: HardhatUserConfig = {
       url: process.env.ALCHEMY_SEPOLIA_URL || process.env.SEPOLIA_RPC_URL || "",
       accounts: process.env.WALLET_PRIVATE_KEY ? [process.env.WALLET_PRIVATE_KEY] : []
     }
+  },
+  etherscan: {
+    apiKey: {
+      sepolia: process.env.ETHERSCAN_API_KEY || ""
+    }
   }
 };
 
