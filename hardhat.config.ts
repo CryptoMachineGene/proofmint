@@ -7,7 +7,8 @@ import "./tasks/accounts";
 import "./tasks/buy";
 import "./tasks/balance";
 import "./tasks/grantMinter";
-
+import "./tasks/proofnft";
+import "./tasks/crowdsale";
 
 dotenv.config();
 

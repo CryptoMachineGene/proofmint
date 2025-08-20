@@ -12,6 +12,9 @@ contract ProofNFT is ERC721, ERC721URIStorage, AccessControl {
     string private _baseTokenURI;
 
     event ReceiptMinted(address indexed to, uint256 indexed tokenId);
+    event MinterGranted(address indexed minter);
+    event MinterRevoked(address indexed minter);
+    event BaseURISet(string newBase);
 
     constructor(string memory name_, string memory symbol_, string memory baseURI_)
         ERC721(name_, symbol_)
@@ -55,11 +58,22 @@ contract ProofNFT is ERC721, ERC721URIStorage, AccessControl {
     // ---- Admin & overrides ----
 
     function grantMinter(address minter) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        _grantRole(MINTER_ROLE, minter);
+    _grantRole(MINTER_ROLE, minter);
+    emit MinterGranted(minter);
+    }
+
+    function revokeMinter(address minter) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _revokeRole(MINTER_ROLE, minter);
+        emit MinterRevoked(minter);
+    }
+
+    function totalSupply() external view returns (uint256) { 
+        return _nextTokenId - 1; 
     }
 
     function setBaseURI(string calldata newBase) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _baseTokenURI = newBase;
+        emit BaseURISet(newBase);
     }
 
     function _baseURI() internal view override returns (string memory) {
